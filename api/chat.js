@@ -123,6 +123,29 @@ const TOOLS = [
 // ============================================================
 // N8N WEBHOOK CALLERS
 // ============================================================
+// ============================================================
+// N8N WEBHOOK CALLERS (With Retry for Cold Starts)
+// ============================================================
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      console.warn(`N8N fetch attempt ${i + 1} failed:`, e.message);
+      if (i === maxRetries - 1) throw e;
+      // Wait 1.5s before retrying (gives N8N Cloud time to wake up)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  }
+}
+
 async function callN8NBooking(data, channel) {
   const url = process.env.N8N_BOOKING_WEBHOOK_URL;
   if (!url) {
@@ -130,15 +153,14 @@ async function callN8NBooking(data, channel) {
     return { success: true, message: "Booking noted (N8N not configured)" };
   }
   try {
-    const res = await fetch(url, {
+    return await fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: "book", channel, ...data }),
     });
-    return await res.json();
   } catch (e) {
-    console.error("N8N booking webhook error:", e.message);
-    return { success: false, message: "Booking system temporarily unavailable" };
+    console.error("N8N booking webhook error after retries:", e.message);
+    return { success: false, message: "Booking system is currently starting up, please hold on or call us." };
   }
 }
 
@@ -149,14 +171,13 @@ async function callN8NEmergency(data, channel) {
     return { success: true, message: "Emergency noted (N8N not configured)" };
   }
   try {
-    const res = await fetch(url, {
+    return await fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel, ...data }),
     });
-    return await res.json();
   } catch (e) {
-    console.error("N8N emergency webhook error:", e.message);
+    console.error("N8N emergency webhook error after retries:", e.message);
     return { success: false, message: "Alert system temporarily unavailable" };
   }
 }
@@ -219,13 +240,25 @@ module.exports = async function handler(req, res) {
     session.lastActive = Date.now();
 
     try {
+      // Inject current date/time to prevent date hallucination
+      const currentDateTime = new Date().toLocaleString("en-US", { 
+        timeZone: "America/Boise", 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: 'numeric', 
+        minute: 'numeric' 
+      });
+      const DYNAMIC_SYSTEM_PROMPT = SYSTEM_PROMPT + `\n\n[CRITICAL CONTEXT] CURRENT DATE AND TIME: ${currentDateTime} (Mountain Time). Use this exact date as the baseline for ALL scheduling (e.g., if the user says "tomorrow", calculate it based on this date).`;
+
       // ----------------------------------------------------
       // ATTEMPT 1: GEMINI
       // ----------------------------------------------------
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({
         model: "gemini-2.0-flash",
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: DYNAMIC_SYSTEM_PROMPT,
         tools: TOOLS,
       });
 
@@ -296,7 +329,7 @@ module.exports = async function handler(req, res) {
 
       // Map session history to OpenAI/DeepSeek format
       const dsMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: DYNAMIC_SYSTEM_PROMPT },
         ...session.history.map(msg => ({
           role: msg.role === "model" ? "assistant" : "user",
           content: msg.parts[0].text

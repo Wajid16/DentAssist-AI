@@ -88,7 +88,16 @@
 
     const bubbleDiv = document.createElement("div");
     bubbleDiv.className = "message-bubble";
-    bubbleDiv.textContent = text;
+    
+    // Parse basic Markdown (Bold, Italics, Line Breaks)
+    // Escape HTML first to prevent XSS
+    const escaped = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const formatted = escaped
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold
+      .replace(/\*(.*?)\*/g, "<em>$1</em>")             // Italics
+      .replace(/\n/g, "<br>");                          // Line breaks
+
+    bubbleDiv.innerHTML = formatted;
 
     msgDiv.appendChild(bubbleDiv);
     messagesContainer.appendChild(msgDiv);
@@ -140,4 +149,17 @@
   if (demoSection) {
     observer.observe(demoSection);
   }
+
+  // Handle Scenario Chips
+  const scenarioChips = document.querySelectorAll(".scenario-chip");
+  scenarioChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      const prompt = chip.getAttribute("data-prompt");
+      if (!isOpen) {
+        toggleChat();
+      }
+      chatInput.value = prompt;
+      sendMessage();
+    });
+  });
 })();

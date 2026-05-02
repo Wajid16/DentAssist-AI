@@ -162,6 +162,12 @@ body {
 }
 .section-desc { font-size: 17px; color: var(--text-secondary); max-width: 600px; margin: 0 auto; }
 
+.scenario-chip:hover {
+    background: rgba(79, 140, 255, 0.1) !important;
+    border-color: var(--accent) !important;
+    transform: translateY(-2px);
+}
+
 /* ---- Problem Cards ---- */
 .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
 .problem-card {
