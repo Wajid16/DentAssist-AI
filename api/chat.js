@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
 // ============================================================
 // SYSTEM PROMPT — The dental receptionist's brain
@@ -207,12 +208,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "message and sessionId required" });
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: SYSTEM_PROMPT,
-      tools: TOOLS,
-    });
+    let textResponse = "";
+    let functionCalled = false;
 
     // Get or create session
     if (!sessions.has(sessionId)) {
@@ -221,60 +218,154 @@ module.exports = async function handler(req, res) {
     const session = sessions.get(sessionId);
     session.lastActive = Date.now();
 
-    // Start chat with history
-    const chat = model.startChat({
-      history: session.history.map((msg) => ({
-        role: msg.role,
-        parts: msg.parts,
-      })),
-    });
+    try {
+      // ----------------------------------------------------
+      // ATTEMPT 1: GEMINI
+      // ----------------------------------------------------
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        systemInstruction: SYSTEM_PROMPT,
+        tools: TOOLS,
+      });
 
-    // Send user message
-    const result = await chat.sendMessage(message);
-    let response = result.response;
-    let textResponse = "";
+      // Start chat with history
+      const chat = model.startChat({
+        history: session.history.map((msg) => ({
+          role: msg.role,
+          parts: msg.parts,
+        })),
+      });
 
-    // Check if the model wants to call a function
-    const candidate = response.candidates?.[0];
-    const parts = candidate?.content?.parts || [];
+      // Send user message
+      const result = await chat.sendMessage(message);
+      let response = result.response;
 
-    let functionCalled = false;
+      // Check if the model wants to call a function
+      const candidate = response.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
 
-    for (const part of parts) {
-      if (part.functionCall) {
+      for (const part of parts) {
+        if (part.functionCall) {
+          functionCalled = true;
+          const fnName = part.functionCall.name;
+          const fnArgs = part.functionCall.args;
+
+          let fnResult;
+
+          if (fnName === "book_appointment") {
+            fnResult = await callN8NBooking(fnArgs, "chat");
+          } else if (fnName === "report_emergency") {
+            fnResult = await callN8NEmergency(fnArgs, "chat");
+          }
+
+          // Send function result back to model so it can generate a natural response
+          const followUp = await chat.sendMessage([
+            {
+              functionResponse: {
+                name: fnName,
+                response: fnResult || { success: true },
+              },
+            },
+          ]);
+
+          textResponse = followUp.response.text();
+        } else if (part.text) {
+          textResponse += part.text;
+        }
+      }
+
+      if (!textResponse) {
+        textResponse = response.text();
+      }
+
+    } catch (geminiError) {
+      console.warn("Gemini API failed/limited, falling back to DeepSeek:", geminiError.message);
+      
+      // ----------------------------------------------------
+      // ATTEMPT 2: DEEPSEEK FALLBACK
+      // ----------------------------------------------------
+      if (!process.env.DEEPSEEK_API_KEY) {
+        throw new Error("Gemini failed and DEEPSEEK_API_KEY is not configured.");
+      }
+
+      const openai = new OpenAI({
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseURL: "https://api.deepseek.com",
+      });
+
+      // Map session history to OpenAI/DeepSeek format
+      const dsMessages = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...session.history.map(msg => ({
+          role: msg.role === "model" ? "assistant" : "user",
+          content: msg.parts[0].text
+        })),
+        { role: "user", content: message }
+      ];
+
+      // Map tools to OpenAI/DeepSeek format
+      const dsTools = [
+        {
+          type: "function",
+          function: {
+            name: "book_appointment",
+            description: TOOLS[0].functionDeclarations[0].description,
+            parameters: TOOLS[0].functionDeclarations[0].parameters
+          }
+        },
+        {
+          type: "function",
+          function: {
+            name: "report_emergency",
+            description: TOOLS[0].functionDeclarations[1].description,
+            parameters: TOOLS[0].functionDeclarations[1].parameters
+          }
+        }
+      ];
+
+      const completion = await openai.chat.completions.create({
+        model: "deepseek-chat",
+        messages: dsMessages,
+        tools: dsTools
+      });
+
+      const responseMessage = completion.choices[0].message;
+
+      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
         functionCalled = true;
-        const fnName = part.functionCall.name;
-        const fnArgs = part.functionCall.args;
-
+        const toolCall = responseMessage.tool_calls[0];
+        const fnName = toolCall.function.name;
+        const fnArgs = JSON.parse(toolCall.function.arguments);
+        
         let fnResult;
-
         if (fnName === "book_appointment") {
           fnResult = await callN8NBooking(fnArgs, "chat");
         } else if (fnName === "report_emergency") {
           fnResult = await callN8NEmergency(fnArgs, "chat");
         }
 
-        // Send function result back to model so it can generate a natural response
-        const followUp = await chat.sendMessage([
-          {
-            functionResponse: {
-              name: fnName,
-              response: fnResult || { success: true },
-            },
-          },
-        ]);
+        // Add tool call and response to messages and trigger followup
+        dsMessages.push(responseMessage);
+        dsMessages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(fnResult || { success: true })
+        });
 
-        textResponse = followUp.response.text();
-      } else if (part.text) {
-        textResponse += part.text;
+        const followUp = await openai.chat.completions.create({
+          model: "deepseek-chat",
+          messages: dsMessages,
+          tools: dsTools
+        });
+        
+        textResponse = followUp.choices[0].message.content;
+      } else {
+        textResponse = responseMessage.content;
       }
     }
 
-    if (!textResponse) {
-      textResponse = response.text();
-    }
-
-    // Save to session history
+    // Save to session history (using our Gemini-style storage for consistency)
     session.history.push({
       role: "user",
       parts: [{ text: message }],
@@ -301,7 +392,7 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({ response: textResponse });
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("Chat API error (both Gemini and DeepSeek failed):", error);
     return res.status(500).json({
       response:
         "I apologize, I'm having a brief technical issue. Please call us directly at (208) 555-0123 and we'll be happy to help!",
