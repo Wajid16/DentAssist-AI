@@ -239,19 +239,19 @@ module.exports = async function handler(req, res) {
     const session = sessions.get(sessionId);
     session.lastActive = Date.now();
 
-    try {
-      // Inject current date/time to prevent date hallucination
-      const currentDateTime = new Date().toLocaleString("en-US", { 
-        timeZone: "America/Boise", 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric', 
-        hour: 'numeric', 
-        minute: 'numeric' 
-      });
-      const DYNAMIC_SYSTEM_PROMPT = SYSTEM_PROMPT + `\n\n[CRITICAL CONTEXT] CURRENT DATE AND TIME: ${currentDateTime} (Mountain Time). Use this exact date as the baseline for ALL scheduling (e.g., if the user says "tomorrow", calculate it based on this date).`;
+    // Inject current date/time to prevent date hallucination
+    const currentDateTime = new Date().toLocaleString("en-US", { 
+      timeZone: "America/Boise", 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      hour: 'numeric', 
+      minute: 'numeric' 
+    });
+    const DYNAMIC_SYSTEM_PROMPT = SYSTEM_PROMPT + `\n\n[CRITICAL CONTEXT] CURRENT DATE AND TIME: ${currentDateTime} (Mountain Time). Use this exact date as the baseline for ALL scheduling (e.g., if the user says "tomorrow", calculate it based on this date).`;
 
+    try {
       // ----------------------------------------------------
       // ATTEMPT 1: GEMINI
       // ----------------------------------------------------
