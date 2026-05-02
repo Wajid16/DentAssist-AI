@@ -1,0 +1,135 @@
+{
+  "name": "DentAssist - Emergency Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dentassist-emergency",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-emergency",
+      "name": "Emergency Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "to": "={{ $env.ONCALL_DENTIST_PHONE }}",
+        "message": "🚨 EMERGENCY ALERT - DentAssist AI\n\nPatient: {{ $json.body.patient_name }}\nPhone: {{ $json.body.patient_phone }}\nSymptoms: {{ $json.body.symptoms }}\nSeverity: {{ $json.body.severity }}\nChannel: {{ $json.body.channel }}\nTime: {{ DateTime.now().toFormat('h:mm a, MMM d') }}\n\nPlease contact the patient ASAP."
+      },
+      "id": "sms-oncall",
+      "name": "SMS On-Call Dentist",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "twilioApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "office@clinic.com",
+        "subject": "🚨 EMERGENCY: Patient needs urgent attention",
+        "message": "<div style='font-family:Arial,sans-serif;max-width:600px;'><div style='background:#dc2626;color:white;padding:16px;border-radius:8px 8px 0 0;'><h2 style='margin:0;'>🚨 Emergency Alert</h2></div><div style='background:#fef2f2;padding:20px;border:1px solid #fecaca;border-radius:0 0 8px 8px;'><table style='width:100%;border-collapse:collapse;'><tr><td style='padding:8px;font-weight:bold;'>Patient:</td><td style='padding:8px;'>{{ $('Emergency Webhook').item.json.body.patient_name }}</td></tr><tr><td style='padding:8px;font-weight:bold;'>Phone:</td><td style='padding:8px;'>{{ $('Emergency Webhook').item.json.body.patient_phone }}</td></tr><tr><td style='padding:8px;font-weight:bold;'>Symptoms:</td><td style='padding:8px;'>{{ $('Emergency Webhook').item.json.body.symptoms }}</td></tr><tr><td style='padding:8px;font-weight:bold;'>Severity:</td><td style='padding:8px;'>{{ $('Emergency Webhook').item.json.body.severity }}</td></tr><tr><td style='padding:8px;font-weight:bold;'>Channel:</td><td style='padding:8px;'>{{ $('Emergency Webhook').item.json.body.channel }}</td></tr></table></div><p style='color:#666;font-size:12px;margin-top:12px;'>— DentAssist AI Emergency System</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "email-emergency",
+      "name": "Email Clinic Emergency",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [500, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_YOUR_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Emergencies"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "Patient Name": "={{ $('Emergency Webhook').item.json.body.patient_name }}",
+            "Phone": "={{ $('Emergency Webhook').item.json.body.patient_phone }}",
+            "Symptoms": "={{ $('Emergency Webhook').item.json.body.symptoms }}",
+            "Severity": "={{ $('Emergency Webhook').item.json.body.severity }}",
+            "Channel": "={{ $('Emergency Webhook').item.json.body.channel }}",
+            "Status": "Alerted"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-emergency",
+      "name": "Log Emergency",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [760, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Emergency alert sent to on-call dentist' }) }}"
+      },
+      "id": "respond-emergency",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Emergency Webhook": {
+      "main": [
+        [
+          { "node": "SMS On-Call Dentist", "type": "main", "index": 0 },
+          { "node": "Email Clinic Emergency", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "SMS On-Call Dentist": {
+      "main": [
+        [{ "node": "Log Emergency", "type": "main", "index": 0 }]
+      ]
+    },
+    "Log Emergency": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "DentAssist AI" }
+  ]
+}

@@ -1,0 +1,215 @@
+{
+  "name": "DentAssist - Appointment Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dentassist-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-booking",
+      "name": "Booking Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "condition-intent",
+              "leftValue": "={{ $json.body.intent }}",
+              "rightValue": "book",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-intent",
+      "name": "Check Intent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "primary"
+        },
+        "start": "={{ $json.body.preferred_datetime }}",
+        "end": "={{ DateTime.fromISO($json.body.preferred_datetime).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "Dental Appointment - {{ $json.body.patient_name }}",
+          "description": "Patient: {{ $json.body.patient_name }}\nPhone: {{ $json.body.patient_phone }}\nService: {{ $json.body.service_needed }}\nChannel: {{ $json.body.channel }}\nNotes: {{ $json.body.notes || 'None' }}\n\nBooked by DentAssist AI",
+          "attendees": [],
+          "location": "Bright Smile Dental - 305 W Idaho St, Boise, ID"
+        }
+      },
+      "id": "create-calendar-event",
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [700, 200],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "to": "={{ $('Booking Webhook').item.json.body.patient_phone }}",
+        "message": "✅ Appointment Confirmed!\n\nHi {{ $('Booking Webhook').item.json.body.patient_name }}, your appointment at Bright Smile Dental is booked for {{ DateTime.fromISO($('Booking Webhook').item.json.body.preferred_datetime).toFormat('EEEE, MMMM d') }} at {{ DateTime.fromISO($('Booking Webhook').item.json.body.preferred_datetime).toFormat('h:mm a') }}.\n\nAddress: 305 W Idaho St, Boise, ID\nPhone: (208) 555-0123\n\nReply CANCEL to cancel or RESCHEDULE to change your appointment."
+      },
+      "id": "send-sms-confirmation",
+      "name": "SMS Confirmation to Patient",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [940, 120],
+      "credentials": {
+        "twilioApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "office@clinic.com",
+        "subject": "📅 New Appointment Booked by DentAssist AI",
+        "message": "<h2>New Appointment Booked</h2><table style='border-collapse:collapse;width:100%;font-family:Arial,sans-serif;'><tr style='background:#f0f4ff;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Patient</td><td style='padding:12px;border:1px solid #ddd;'>{{ $('Booking Webhook').item.json.body.patient_name }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Phone</td><td style='padding:12px;border:1px solid #ddd;'>{{ $('Booking Webhook').item.json.body.patient_phone }}</td></tr><tr style='background:#f0f4ff;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Service</td><td style='padding:12px;border:1px solid #ddd;'>{{ $('Booking Webhook').item.json.body.service_needed }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Date/Time</td><td style='padding:12px;border:1px solid #ddd;'>{{ DateTime.fromISO($('Booking Webhook').item.json.body.preferred_datetime).toFormat('EEEE, MMMM d, yyyy') }} at {{ DateTime.fromISO($('Booking Webhook').item.json.body.preferred_datetime).toFormat('h:mm a') }}</td></tr><tr style='background:#f0f4ff;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Channel</td><td style='padding:12px;border:1px solid #ddd;'>{{ $('Booking Webhook').item.json.body.channel }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Notes</td><td style='padding:12px;border:1px solid #ddd;'>{{ $('Booking Webhook').item.json.body.notes || 'None' }}</td></tr></table><br><p style='color:#666;font-size:12px;'>— DentAssist AI</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "email-clinic",
+      "name": "Email Clinic Notification",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [940, 280],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_YOUR_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "Patient Name": "={{ $('Booking Webhook').item.json.body.patient_name }}",
+            "Phone": "={{ $('Booking Webhook').item.json.body.patient_phone }}",
+            "Service": "={{ $('Booking Webhook').item.json.body.service_needed }}",
+            "Appointment Date": "={{ $('Booking Webhook').item.json.body.preferred_datetime }}",
+            "Channel": "={{ $('Booking Webhook').item.json.body.channel }}",
+            "Status": "Booked",
+            "Notes": "={{ $('Booking Webhook').item.json.body.notes || '' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-to-sheets",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [940, 440],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Appointment booked successfully', event_id: $('Create Calendar Event').item.json.id || 'pending' }) }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, message: 'Unknown intent' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 440]
+    }
+  ],
+  "connections": {
+    "Booking Webhook": {
+      "main": [
+        [{ "node": "Check Intent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Intent": {
+      "main": [
+        [{ "node": "Create Calendar Event", "type": "main", "index": 0 }],
+        [{ "node": "Respond Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Calendar Event": {
+      "main": [
+        [
+          { "node": "SMS Confirmation to Patient", "type": "main", "index": 0 },
+          { "node": "Email Clinic Notification", "type": "main", "index": 0 },
+          { "node": "Log to Google Sheets", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "SMS Confirmation to Patient": {
+      "main": [
+        [{ "node": "Respond Success", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "DentAssist AI" }
+  ]
+}

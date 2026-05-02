@@ -1,0 +1,93 @@
+{
+  "name": "DentAssist - Chat & Interaction Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dentassist-log",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-log",
+      "name": "Log Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_YOUR_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Interactions"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "Session ID": "={{ $json.body.sessionId }}",
+            "Channel": "={{ $json.body.channel }}",
+            "Patient Message": "={{ $json.body.userMessage }}",
+            "AI Response": "={{ $json.body.aiResponse }}",
+            "Clinic ID": "={{ $json.body.clinic_id || 'demo' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-interaction",
+      "name": "Log to Interactions Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "logged"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-response",
+      "name": "Set Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Log Webhook": {
+      "main": [
+        [{ "node": "Log to Interactions Sheet", "type": "main", "index": 0 }]
+      ]
+    },
+    "Log to Interactions Sheet": {
+      "main": [
+        [{ "node": "Set Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "DentAssist AI" }
+  ]
+}
