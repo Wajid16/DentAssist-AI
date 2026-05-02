@@ -420,3 +420,111 @@ body {
 .chat-messages::-webkit-scrollbar { width: 4px; }
 .chat-messages::-webkit-scrollbar-track { background: transparent; }
 .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ============================================
+   Advanced Sales Funnel Additions
+   ============================================ */
+
+/* ---- Integrations Bar ---- */
+.integration-bar {
+    padding: 24px 0; background: var(--bg-card);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.integration-inner {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.integration-text { font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.integration-logos { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.logo-badge {
+    padding: 8px 16px; border-radius: 100px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+}
+
+/* ---- Video Section ---- */
+.video-container {
+    max-width: 900px; margin: 0 auto;
+    border-radius: var(--radius-lg); padding: 12px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    box-shadow: var(--shadow-glow);
+}
+.video-placeholder {
+    width: 100%; aspect-ratio: 16/9; border-radius: var(--radius);
+    background: var(--bg-primary);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px dashed rgba(79,140,255,0.3); cursor: pointer; transition: var(--transition);
+}
+.video-placeholder:hover { background: rgba(79,140,255,0.05); }
+.play-button {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--gradient); display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: #fff; margin-bottom: 16px; padding-left: 4px;
+    box-shadow: 0 4px 20px rgba(79,140,255,0.4);
+}
+
+/* ---- Before & After Timeline ---- */
+.timeline-container {
+    display: flex; gap: 32px; max-width: 900px; margin: 0 auto; flex-wrap: wrap;
+}
+.timeline-column {
+    flex: 1; min-width: 300px; padding: 32px;
+    border-radius: var(--radius-lg); border: 1px solid var(--border);
+    background: var(--bg-card);
+}
+.timeline-title { font-size: 20px; font-weight: 700; margin-bottom: 24px; text-align: center; }
+.timeline-event { display: flex; gap: 16px; margin-bottom: 24px; position: relative; }
+.timeline-event .time {
+    font-weight: 700; color: var(--text-primary); font-size: 14px;
+    min-width: 60px; text-align: right;
+}
+.timeline-event p { font-size: 14px; color: var(--text-secondary); line-height: 1.4; flex: 1; }
+.timeline-result {
+    margin-top: 32px; padding: 16px; border-radius: var(--radius);
+    text-align: center; font-weight: 700; font-size: 15px;
+}
+.error { color: #ef4444; }
+.success { color: #22c55e; }
+.error-bg { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+.success-bg { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+
+/* ---- ROI Calculator ---- */
+.calc-container {
+    display: flex; gap: 40px; max-width: 900px; margin: 0 auto;
+    background: var(--bg-card); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); overflow: hidden;
+    flex-wrap: wrap;
+}
+.calc-inputs { flex: 3; padding: 40px; min-width: 320px; }
+.calc-results {
+    flex: 2; padding: 40px; background: var(--gradient-subtle);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    border-left: 1px solid var(--border); text-align: center;
+}
+@media (max-width: 768px) {
+    .calc-results { border-left: none; border-top: 1px solid var(--border); }
+}
+.calc-group { margin-bottom: 24px; }
+.calc-group label {
+    display: flex; justify-content: space-between;
+    font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);
+}
+.calc-val { color: var(--accent); font-weight: 800; font-size: 16px; }
+.calc-group input[type="range"] {
+    width: 100%; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1);
+    outline: none; -webkit-appearance: none;
+}
+.calc-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: 2px solid #fff;
+}
+.calc-huge-number { font-size: clamp(36px, 5vw, 48px); font-weight: 900; color: #ef4444; line-height: 1; margin: 16px 0 8px; }
+
+/* ---- FAQ ---- */
+.faq-grid { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 800px; margin: 0 auto; }
+.faq-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; transition: var(--transition);
+}
+.faq-card:hover { border-color: var(--border-hover); }
+.faq-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
+.faq-card p { font-size: 15px; color: var(--text-secondary); line-height: 1.6; }

@@ -40,7 +40,7 @@
                 Never Lose a <span class="gradient-text">$1,000 Patient</span> to Voicemail Again
             </h1>
             <p class="hero-subtitle">
-                Your AI receptionist answers every call, text, and chat 24/7 — books appointments, handles insurance questions, and triages emergencies. So your front desk can focus on patients in the chair.
+                Your 24/7 Virtual Receptionist answers every call, text, and chat — books appointments, handles insurance questions, and triages emergencies. So your front desk can focus on patients in the chair.
             </p>
             <div class="hero-cta">
                 <a href="#demo" class="btn btn-primary btn-lg">Try Live Demo →</a>
@@ -60,6 +60,36 @@
                 <div class="stat">
                     <span class="stat-number">24/7</span>
                     <span class="stat-label">coverage with DentAssist AI</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Integration Logos -->
+    <div class="integration-bar">
+        <div class="container integration-inner">
+            <span class="integration-text">Works seamlessly alongside your tools:</span>
+            <div class="integration-logos">
+                <div class="logo-badge">📅 Google Workspace</div>
+                <div class="logo-badge">💬 Twilio SMS</div>
+                <div class="logo-badge">🦷 Dentrix / Open Dental Compatible</div>
+                <div class="logo-badge">🔒 HIPAA Compliant Architecture</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Explainer Video Section -->
+    <section class="section section-video" id="video">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">See It In Action</span>
+                <h2>Watch Ava Book a 2:00 AM Emergency</h2>
+                <p class="section-desc">See exactly how your new digital front desk handles a real patient interaction while you sleep.</p>
+            </div>
+            <div class="video-container">
+                <div class="video-placeholder">
+                    <div class="play-button">▶</div>
+                    <p>Click to Play Explainer Video</p>
                 </div>
             </div>
         </div>
@@ -93,6 +123,52 @@
                     <div class="problem-icon">😓</div>
                     <h3>Staff Burnout</h3>
                     <p>Front desk staff cost <strong>$40-55K/year</strong>, face high turnover, and can only handle one call at a time.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Before & After Timeline -->
+    <section class="section" id="timeline">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">The Difference</span>
+                <h2>A 2:00 AM Dental Emergency</h2>
+                <p class="section-desc">What happens when a patient is in pain after hours? See the difference DentAssist makes.</p>
+            </div>
+            <div class="timeline-container">
+                <div class="timeline-column before">
+                    <h3 class="timeline-title error">❌ Without DentAssist</h3>
+                    <div class="timeline-event">
+                        <div class="time">2:00 AM</div>
+                        <p>Patient breaks tooth, calls your clinic.</p>
+                    </div>
+                    <div class="timeline-event">
+                        <div class="time">2:01 AM</div>
+                        <p>Hits voicemail. Hangs up in frustration.</p>
+                    </div>
+                    <div class="timeline-event">
+                        <div class="time">2:05 AM</div>
+                        <p>Calls competitor who answers.</p>
+                    </div>
+                    <div class="timeline-result error-bg">Result: $1,200 Lost Patient</div>
+                </div>
+                
+                <div class="timeline-column after">
+                    <h3 class="timeline-title success">✅ With DentAssist</h3>
+                    <div class="timeline-event">
+                        <div class="time">2:00 AM</div>
+                        <p>Patient breaks tooth, texts your clinic.</p>
+                    </div>
+                    <div class="timeline-event">
+                        <div class="time">2:01 AM</div>
+                        <p>Ava replies instantly with empathy & triage.</p>
+                    </div>
+                    <div class="timeline-event">
+                        <div class="time">2:02 AM</div>
+                        <p>Ava texts you the alert & secures an 8 AM slot.</p>
+                    </div>
+                    <div class="timeline-result success-bg">Result: Patient Secured & Stress Minimized</div>
                 </div>
             </div>
         </div>
@@ -217,6 +293,43 @@
         </div>
     </section>
 
+    <!-- ROI Calculator -->
+    <section class="section" id="calculator">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">The Math</span>
+                <h2>Calculate Your Lost Revenue</h2>
+                <p class="section-desc">Move the sliders below to see how much your missed calls are actually costing your practice every single month.</p>
+            </div>
+            <div class="calc-container">
+                <div class="calc-inputs">
+                    <div class="calc-group">
+                        <label for="missedCalls">Missed Calls per Week: <span id="missedCallsVal" class="calc-val">15</span></label>
+                        <input type="range" id="missedCalls" min="1" max="100" value="15">
+                    </div>
+                    <div class="calc-group">
+                        <label for="patientValue">Avg. New Patient Value: $<span id="patientValueVal" class="calc-val">1,000</span></label>
+                        <input type="range" id="patientValue" min="300" max="3000" step="100" value="1000">
+                    </div>
+                    <div class="calc-group">
+                        <label for="conversionRate">Estimated Booking Rate: <span id="conversionRateVal" class="calc-val">30</span>%</label>
+                        <input type="range" id="conversionRate" min="10" max="80" step="5" value="30">
+                        <small style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 4px;">% of callers who would have booked if someone answered.</small>
+                    </div>
+                </div>
+                <div class="calc-results">
+                    <h3>Revenue Lost to Voicemail</h3>
+                    <div class="calc-huge-number" id="lostRevenue">$18,000</div>
+                    <p style="color: var(--text-secondary); margin-bottom: 24px;">per month</p>
+                    <div class="calc-vs">
+                        <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 4px;">DentAssist AI Starts At:</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #22c55e;">$197/mo</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Pricing Section -->
     <section class="section section-dark" id="pricing">
         <div class="container">
@@ -280,12 +393,12 @@
     </section>
 
     <!-- Demo Section -->
-    <section class="section" id="demo">
+    <section class="section section-dark" id="demo">
         <div class="container">
             <div class="section-header">
-                <span class="section-tag">Live Demo</span>
-                <h2>Try It Right Now</h2>
-                <p class="section-desc">Chat with Ava, our AI dental receptionist. Pretend you're a patient calling a dental office. Ask about appointments, insurance, emergencies — anything.</p>
+                <span class="section-tag">Interactive Demo</span>
+                <h2>Interview Your New Receptionist</h2>
+                <p class="section-desc">Ava is ready for a test run. Click a scenario below or type a tough patient question to see how she handles it.</p>
             </div>
             
             <div class="demo-scenarios" style="text-align: center; margin-top: 32px;">
@@ -300,8 +413,36 @@
         </div>
     </section>
 
+    <!-- FAQ Section -->
+    <section class="section" id="faq">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">FAQ</span>
+                <h2>Common Questions</h2>
+            </div>
+            <div class="faq-grid">
+                <div class="faq-card">
+                    <h3>Will patients get frustrated talking to a robot?</h3>
+                    <p>No. Ava uses state-of-the-art conversational technology. She is empathetic, sounds natural, and is specifically trained never to sound robotic or rigid.</p>
+                </div>
+                <div class="faq-card">
+                    <h3>Is this HIPAA Compliant?</h3>
+                    <p>Yes. All data transit is encrypted, and Ava only collects the minimum necessary information to secure the appointment and route it to your secure calendar.</p>
+                </div>
+                <div class="faq-card">
+                    <h3>Does it work with Dentrix or Open Dental?</h3>
+                    <p>Ava works perfectly alongside your existing Practice Management Software. She secures the patient and blocks the time, allowing your staff to quickly sync it when they arrive.</p>
+                </div>
+                <div class="faq-card">
+                    <h3>What if the patient has a complex insurance question?</h3>
+                    <p>Ava is trained to politely explain that she will have the billing specialist call them back during business hours, while still guiding them to secure an appointment slot.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- CTA Section -->
-    <section class="section section-cta">
+    <section class="section section-cta section-dark">
         <div class="container">
             <h2>Ready to Stop Losing Patients?</h2>
             <p>Every hour without DentAssist AI is another missed call, another lost patient, another $1,000 walking to your competitor.</p>
@@ -384,6 +525,38 @@
                 document.getElementById('mobileMenuBtn').classList.remove('active');
             });
         });
+
+        // ROI Calculator Logic
+        const missedCalls = document.getElementById('missedCalls');
+        const patientValue = document.getElementById('patientValue');
+        const conversionRate = document.getElementById('conversionRate');
+        
+        const missedCallsVal = document.getElementById('missedCallsVal');
+        const patientValueVal = document.getElementById('patientValueVal');
+        const conversionRateVal = document.getElementById('conversionRateVal');
+        
+        const lostRevenue = document.getElementById('lostRevenue');
+
+        function calculateROI() {
+            const calls = parseInt(missedCalls.value);
+            const value = parseInt(patientValue.value);
+            const rate = parseInt(conversionRate.value) / 100;
+
+            missedCallsVal.textContent = calls;
+            patientValueVal.textContent = value.toLocaleString();
+            conversionRateVal.textContent = conversionRate.value;
+
+            // (Calls per week * 4.33 weeks per month) * conversion rate * patient value
+            const monthlyLost = Math.round((calls * 4.33) * rate * value);
+            lostRevenue.textContent = "$" + monthlyLost.toLocaleString();
+        }
+
+        if (missedCalls) {
+            missedCalls.addEventListener('input', calculateROI);
+            patientValue.addEventListener('input', calculateROI);
+            conversionRate.addEventListener('input', calculateROI);
+            calculateROI(); // Initial calc
+        }
     </script>
 </body>
 </html>
