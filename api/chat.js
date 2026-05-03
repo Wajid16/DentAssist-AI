@@ -61,8 +61,10 @@ module.exports = async function handler(req, res) {
     const data = await n8nResponse.json();
     
     // N8N's AI Agent node returns the text in the "output" property by default. 
-    // We check for "response", "output", "text", or "message" to be flexible.
-    const textResponse = data.response || data.output || data.text || data.message || "I apologize, I didn't receive a proper response. Could you try again?";
+    // However, since the user added a Google Sheets node before the Response node, 
+    // it returns the Google Sheets JSON (e.g., {"AI Response": "..."}).
+    // We check all possible variations to be flexible.
+    const textResponse = data["AI Response"] || data.response || data.output || data.text || data.message || "I apologize, I didn't receive a proper response. Could you try again?";
 
     // 4. Send response back to the widget
     return res.status(200).json({ response: textResponse });
