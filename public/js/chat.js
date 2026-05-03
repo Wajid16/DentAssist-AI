@@ -37,6 +37,34 @@
   toggle.addEventListener("click", toggleChat);
   chatClose.addEventListener("click", toggleChat);
 
+  // Fetch and load chat history on startup
+  async function loadChatHistory() {
+    try {
+      const response = await fetch(`/api/history?sessionId=${sessionId}`);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      
+      // N8N Supabase query usually returns an array of objects
+      if (data && Array.isArray(data)) {
+        data.forEach(row => {
+          // Depending on LangChain formatting, the text might be nested
+          const text = row.message?.data?.content || row.message?.content || row.content;
+          const role = row.message?.type || row.role;
+          
+          if (text) {
+            appendMessage(text, role === 'ai' ? 'ai' : 'user');
+          }
+        });
+      }
+    } catch (error) {
+      console.warn("Could not load chat history:", error);
+    }
+  }
+
+  // Load history immediately
+  loadChatHistory();
+
   // Send message
   async function sendMessage() {
     const text = chatInput.value.trim();
