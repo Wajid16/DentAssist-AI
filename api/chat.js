@@ -60,8 +60,9 @@ module.exports = async function handler(req, res) {
 
     const data = await n8nResponse.json();
     
-    // N8N should return a JSON object like { "response": "Hello, how can I help?" }
-    const textResponse = data.response || "I apologize, I didn't receive a proper response. Could you try again?";
+    // N8N's AI Agent node returns the text in the "output" property by default. 
+    // We check for "response", "output", "text", or "message" to be flexible.
+    const textResponse = data.response || data.output || data.text || data.message || "I apologize, I didn't receive a proper response. Could you try again?";
 
     // 4. Send response back to the widget
     return res.status(200).json({ response: textResponse });
