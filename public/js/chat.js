@@ -5,8 +5,13 @@
 
 (function () {
   const API_URL = "/api/chat";
-  const sessionId =
-    "session_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+  
+  // Persistent Browser Session Memory (Allows N8N Postgres to remember returning patients)
+  let sessionId = localStorage.getItem("dentassist_session_id");
+  if (!sessionId) {
+    sessionId = "session_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+    localStorage.setItem("dentassist_session_id", sessionId);
+  }
 
   // DOM elements
   const toggle = document.getElementById("chatToggle");
