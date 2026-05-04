@@ -1,0 +1,1404 @@
+{
+  "name": "DentAssist - Appointment Manager [Production v2]",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "action"
+            },
+            {
+              "name": "channel"
+            },
+            {
+              "name": "idempotency_key"
+            },
+            {
+              "name": "patient_name"
+            },
+            {
+              "name": "patient_phone"
+            },
+            {
+              "name": "patient_email"
+            },
+            {
+              "name": "service_type"
+            },
+            {
+              "name": "start_time"
+            },
+            {
+              "name": "end_time"
+            },
+            {
+              "name": "timezone"
+            },
+            {
+              "name": "calendar_event_id"
+            },
+            {
+              "name": "appointment_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1104,
+        336
+      ],
+      "id": "859c83c6-e3e9-48b7-a781-cc9febdbe3e6",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dentassist-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c0b40796-8e32-40c3-9d90-8942f8f7e747",
+      "name": "Booking Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        528
+      ],
+      "webhookId": "c5b9141c-cb34-4157-b3ef-af8365bf7f51",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize input from either trigger (Execute Workflow OR Webhook)\nconst raw = $input.item.json;\n\n// If from webhook, data is nested in .body\nconst d = raw.body || raw;\n\n// Support both old field names (intent/service_needed/preferred_datetime)\n// and new field names (action/service_type/start_time)\nconst action = d.action || d.intent || 'book';\nconst startTime = d.start_time || d.preferred_datetime || '';\n\n// Auto-calculate end_time if not provided (default 1 hour appointment)\nlet endTime = d.end_time || '';\nif (!endTime && startTime) {\n  const start = new Date(startTime);\n  start.setHours(start.getHours() + 1);\n  endTime = start.toISOString();\n}\n\n// Generate idempotency key if not provided\nconst idempotencyKey = d.idempotency_key || \n  `${String(d.patient_phone || '')}-${startTime}`.replace(/[^a-zA-Z0-9-]/g, '-');\n\nreturn [{\n  json: {\n    action,\n    channel: d.channel || 'chat',\n    idempotency_key: idempotencyKey,\n    patient_name: d.patient_name || '',\n    patient_phone: String(d.patient_phone || ''),\n    patient_email: d.patient_email || '',\n    service_type: d.service_type || d.service_needed || '',\n    start_time: startTime,\n    end_time: endTime,\n    timezone: d.timezone || 'America/New_York',\n    calendar_event_id: d.calendar_event_id || d.event_id || '',\n    appointment_id: d.appointment_id || ''\n  }\n}];"
+      },
+      "id": "cfba29e4-b9a2-44e3-9640-a3839ee401d2",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO patients (name, phone, email, created_at, updated_at)\nVALUES (\n  '{{ $json.patient_name }}',\n  '{{ $json.patient_phone }}',\n  '{{ $json.patient_email }}',\n  NOW(),\n  NOW()\n)\nON CONFLICT (phone)\nDO UPDATE SET\n  name = EXCLUDED.name,\n  email = EXCLUDED.email,\n  updated_at = NOW()\nRETURNING id AS patient_id, name, phone, email;",
+        "options": {}
+      },
+      "id": "f508db81-b76e-4f9c-85aa-8b7a2ce4d8a5",
+      "name": "Patient Upsert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -656,
+        432
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge patient_id from DB result back with the normalized input\nconst dbResult = $input.item.json;\nconst normalized = $('Normalize Input').first().json;\n\nreturn [{\n  json: {\n    ...normalized,\n    patient_id: dbResult.patient_id\n  }\n}];"
+      },
+      "id": "de69ae41-d5ad-4a3f-b9cb-2fe69065d8b6",
+      "name": "Merge Patient ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "switch-create"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "read",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "switch-read"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "switch-update"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "cancel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "switch-cancel"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "0ac3cd12-7b39-4eb4-bac5-047fe11f46b3",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -208,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "52afcffc1e6bcb8453be595fe720279ba73f726f9d789b675be5371b8060ab61@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Calendar"
+        },
+        "limit": 1,
+        "timeMin": "={{ $json.start_time }}",
+        "timeMax": "={{ $json.end_time }}",
+        "options": {}
+      },
+      "id": "dfecf311-a510-4e21-816e-5591cb23f01b",
+      "name": "Check Availability [Create]",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        48
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "NH71Dxgyw4MWykRv",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if GCal returned any events (conflict check)\nconst gcalItems = $input.all();\nconst parentData = $('Merge Patient ID').first().json;\nconst slotTaken = gcalItems.some(item => item.json && item.json.id);\n\nreturn [{\n  json: {\n    ...parentData,\n    slot_available: !slotTaken,\n    conflicting_event: slotTaken ? (gcalItems[0].json.summary || 'Existing appointment') : null\n  }\n}];"
+      },
+      "id": "be5dbeca-303d-4c3d-bc8d-9de7013bab53",
+      "name": "Process Availability [Create]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-slot-create",
+              "leftValue": "={{ $json.slot_available }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a5b2a47a-d4f8-48bc-8673-710457ff3504",
+      "name": "IF Slot Available [Create]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "52afcffc1e6bcb8453be595fe720279ba73f726f9d789b675be5371b8060ab61@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Calendar"
+        },
+        "start": "={{ $json.start_time }}",
+        "end": "={{ $json.end_time }}",
+        "additionalFields": {
+          "attendees": [
+            {
+              "email": "={{ $json.patient_email }}"
+            }
+          ],
+          "description": "={{ 'Patient: ' + $json.patient_name + '\\nPhone: ' + $json.patient_phone + '\\nEmail: ' + $json.patient_email + '\\nChannel: ' + $json.channel }}",
+          "sendUpdates": "all",
+          "summary": "={{ $json.service_type + ' - ' + $json.patient_name }}"
+        }
+      },
+      "id": "1e06013b-7b78-4efb-914f-e34d08ef5a08",
+      "name": "Book GCal Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        688,
+        0
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "NH71Dxgyw4MWykRv",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge GCal event data back with patient/appointment context\nconst gcalEvent = $input.item.json;\nconst ctx = $('Process Availability [Create]').first().json;\n\nreturn [{\n  json: {\n    ...ctx,\n    calendar_event_id: gcalEvent.id,\n    gcal_html_link: gcalEvent.htmlLink\n  }\n}];"
+      },
+      "id": "06bc2587-7c66-42e8-a5c6-ea9720c5c018",
+      "name": "Merge GCal ID [Create]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO appointments (\n  patient_id,\n  calendar_event_id,\n  service_type,\n  start_time,\n  end_time,\n  timezone,\n  status,\n  channel,\n  idempotency_key,\n  created_at\n)\nVALUES (\n  {{ $json.patient_id }},\n  '{{ $json.calendar_event_id }}',\n  '{{ $json.service_type }}',\n  '{{ $json.start_time }}',\n  '{{ $json.end_time }}',\n  '{{ $json.timezone }}',\n  'confirmed',\n  '{{ $json.channel }}',\n  '{{ $json.idempotency_key }}',\n  NOW()\n)\nON CONFLICT (idempotency_key) DO UPDATE SET updated_at = NOW()\nRETURNING id AS appointment_id, calendar_event_id, status;",
+        "options": {}
+      },
+      "id": "e486b328-d871-4493-b498-be0b2127a478",
+      "name": "Insert Appointment DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1136,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbResult = $input.item.json;\nconst ctx = $('Merge GCal ID [Create]').first().json;\nreturn [{ json: { ...ctx, appointment_id: dbResult.appointment_id } }];"
+      },
+      "id": "603a906e-6b3a-45ac-88de-fd976f28c9a1",
+      "name": "Merge Appointment ID [Create]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.patient_email }}",
+        "subject": "=✅ Appointment Confirmed - {{ $json.service_type }} at Bright Smile Dental",
+        "message": "=<div style='font-family:Arial,sans-serif;max-width:600px;'><h2 style='color:#2563eb;'>Your Appointment is Confirmed!</h2><p>Hi {{ $json.patient_name }},</p><p>Your appointment has been successfully booked.</p><table style='border-collapse:collapse;width:100%;margin:20px 0;'><tr style='background:#f0f4ff;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Service</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.service_type }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Date & Time</td><td style='padding:12px;border:1px solid #ddd;'>{{ DateTime.fromISO($json.start_time).toFormat('EEEE, MMMM d, yyyy') }} at {{ DateTime.fromISO($json.start_time).toFormat('h:mm a') }}</td></tr><tr style='background:#f0f4ff;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Location</td><td style='padding:12px;border:1px solid #ddd;'>305 W Idaho St, Boise, ID</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Confirmation #</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.appointment_id }}</td></tr></table><p>A calendar invite has been sent to this email. To reschedule or cancel, please call (208) 555-0123.</p><p style='color:#666;font-size:12px;'>— Bright Smile Dental via DentAssist AI</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5cd054cb-4434-407e-a951-82b789795cfb",
+      "name": "Email Patient Confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1584,
+        0
+      ],
+      "webhookId": "b28b7dc6-f358-4f84-a0a7-39109687c7c0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qSkcYAbnoyKjKC9i",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r-c-1",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "r-c-2",
+              "name": "action",
+              "value": "={{ $('Merge Appointment ID [Create]').first().json.action }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-3",
+              "name": "appointment_id",
+              "value": "={{ $('Merge Appointment ID [Create]').first().json.appointment_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-4",
+              "name": "calendar_event_id",
+              "value": "={{ $('Merge Appointment ID [Create]').first().json.calendar_event_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-5",
+              "name": "patient_id",
+              "value": "={{ $('Merge Appointment ID [Create]').first().json.patient_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-6",
+              "name": "message_voice",
+              "value": "={{ 'Great! Your ' + $('Merge Appointment ID [Create]').first().json.service_type + ' is confirmed for ' + DateTime.fromISO($('Merge Appointment ID [Create]').first().json.start_time).toFormat('EEEE MMMM d') + ' at ' + DateTime.fromISO($('Merge Appointment ID [Create]').first().json.start_time).toFormat('h:mm a') + '. A confirmation has been sent to your email.' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-7",
+              "name": "message_chat",
+              "value": "={{ '✅ Appointment confirmed!\\n\\n**' + $('Merge Appointment ID [Create]').first().json.service_type + '**\\n📅 ' + DateTime.fromISO($('Merge Appointment ID [Create]').first().json.start_time).toFormat('EEEE, MMMM d, yyyy') + ' at ' + DateTime.fromISO($('Merge Appointment ID [Create]').first().json.start_time).toFormat('h:mm a') + '\\n\\nConfirmation sent to your email. Ref: ' + $('Merge Appointment ID [Create]').first().json.appointment_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-c-8",
+              "name": "next_action",
+              "value": "null",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "af919515-0c8a-4342-87a2-38a9912ca99f",
+      "name": "Set Create Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1808,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  a.id AS appointment_id,\n  a.calendar_event_id,\n  a.service_type,\n  a.start_time,\n  a.end_time,\n  a.status,\n  a.channel,\n  p.name AS patient_name,\n  p.phone AS patient_phone,\n  p.email AS patient_email\nFROM appointments a\nJOIN patients p ON a.patient_id = p.id\nWHERE p.phone = '{{ $json.patient_phone }}'\n  AND a.status != 'cancelled'\nORDER BY a.start_time DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "f08c34e6-0dcd-40e9-bd0e-5fd30cde6ca0",
+      "name": "Query Appointments [Read]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        16,
+        240
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const appointments = $input.all().map(i => i.json);\nconst ctx = $('Merge Patient ID').first().json;\n\nconst hasAppts = appointments.length > 0 && appointments[0].appointment_id;\n\nconst apptList = hasAppts\n  ? appointments.map(a =>\n      DateTime.fromISO(a.start_time).toFormat('EEEE MMM d') + ' at ' +\n      DateTime.fromISO(a.start_time).toFormat('h:mm a') + ' - ' + a.service_type\n    ).join(', ')\n  : 'No upcoming appointments found';\n\nreturn [{\n  json: {\n    success: true,\n    action: 'read',\n    appointments: hasAppts ? appointments : [],\n    count: hasAppts ? appointments.length : 0,\n    message_voice: hasAppts\n      ? `I found ${appointments.length} appointment${appointments.length > 1 ? 's' : ''} for you. The next one is on ${DateTime.fromISO(appointments[0].start_time).toFormat('EEEE MMMM d')} at ${DateTime.fromISO(appointments[0].start_time).toFormat('h:mm a')} for ${appointments[0].service_type}.`\n      : 'I could not find any upcoming appointments for your phone number.',\n    message_chat: hasAppts\n      ? `Found **${appointments.length}** upcoming appointment(s):\\n\\n` +\n        appointments.map((a, i) => `${i+1}. **${a.service_type}** — ${DateTime.fromISO(a.start_time).toFormat('EEEE, MMM d')} at ${DateTime.fromISO(a.start_time).toFormat('h:mm a')} (${a.status})`).join('\\n')\n      : '📭 No upcoming appointments found for your phone number.',\n    next_action: null\n  }\n}];"
+      },
+      "id": "feccf2a4-94de-443f-aebe-8b8fe4f3c2c2",
+      "name": "Set Read Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "52afcffc1e6bcb8453be595fe720279ba73f726f9d789b675be5371b8060ab61@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Calendar"
+        },
+        "limit": 1,
+        "timeMin": "={{ $json.start_time }}",
+        "timeMax": "={{ $json.end_time }}",
+        "options": {}
+      },
+      "id": "e4634685-4873-4de1-8c1f-43fa10207908",
+      "name": "Check Availability [Update]",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        432
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "NH71Dxgyw4MWykRv",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const gcalItems = $input.all();\nconst parentData = $('Merge Patient ID').first().json;\n\n// Exclude the current event being rescheduled from conflict check\nconst conflicts = gcalItems.filter(item =>\n  item.json && item.json.id && item.json.id !== parentData.calendar_event_id\n);\nconst slotTaken = conflicts.length > 0;\n\nreturn [{\n  json: {\n    ...parentData,\n    slot_available: !slotTaken,\n    conflicting_event: slotTaken ? (conflicts[0].json.summary || 'Existing appointment') : null\n  }\n}];"
+      },
+      "id": "095cdc8e-b378-4246-89b2-5ade9a42e5f4",
+      "name": "Process Availability [Update]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-slot-update",
+              "leftValue": "={{ $json.slot_available }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "82b46420-7d8e-4edb-b73c-6cdd7386f50b",
+      "name": "IF Slot Available [Update]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "52afcffc1e6bcb8453be595fe720279ba73f726f9d789b675be5371b8060ab61@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Calendar"
+        },
+        "eventId": "={{ $json.calendar_event_id }}",
+        "updateFields": {
+          "description": "={{ 'Patient: ' + $json.patient_name + '\\nPhone: ' + $json.patient_phone + '\\nEmail: ' + $json.patient_email + '\\nChannel: ' + $json.channel + '\\n[Rescheduled]' }}",
+          "end": "={{ $json.end_time }}",
+          "start": "={{ $json.start_time }}",
+          "summary": "={{ $json.service_type + ' - ' + $json.patient_name }}"
+        }
+      },
+      "id": "7b92c0e5-efe9-42dd-ab86-00c10eec00b6",
+      "name": "Update GCal Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        688,
+        480
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "NH71Dxgyw4MWykRv",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE appointments\nSET\n  service_type = '{{ $json.service_type }}',\n  start_time = '{{ $json.start_time }}',\n  end_time = '{{ $json.end_time }}',\n  status = 'rescheduled',\n  updated_at = NOW()\nWHERE calendar_event_id = '{{ $json.calendar_event_id }}'\n   OR id = {{ $json.appointment_id || 0 }}\nRETURNING id AS appointment_id, calendar_event_id, status;",
+        "options": {}
+      },
+      "id": "3c858564-b4b3-41a1-8811-191aa1df3fac",
+      "name": "Update Appointment DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        912,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbResult = $input.item.json;\nconst ctx = $('Process Availability [Update]').first().json;\nreturn [{ json: { ...ctx, appointment_id: dbResult.appointment_id } }];"
+      },
+      "id": "ce30aef2-ccb9-4467-8b1e-b6d0a101a7fc",
+      "name": "Merge Update Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.patient_email }}",
+        "subject": "=📅 Appointment Rescheduled - {{ $json.service_type }} at Bright Smile Dental",
+        "message": "=<div style='font-family:Arial,sans-serif;max-width:600px;'><h2 style='color:#d97706;'>Appointment Rescheduled</h2><p>Hi {{ $json.patient_name }},</p><p>Your appointment has been rescheduled as requested.</p><table style='border-collapse:collapse;width:100%;margin:20px 0;'><tr style='background:#fff7ed;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Service</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.service_type }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>New Date & Time</td><td style='padding:12px;border:1px solid #ddd;'>{{ DateTime.fromISO($json.start_time).toFormat('EEEE, MMMM d, yyyy') }} at {{ DateTime.fromISO($json.start_time).toFormat('h:mm a') }}</td></tr><tr style='background:#fff7ed;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Ref #</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.appointment_id }}</td></tr></table><p>Your calendar invite has been updated automatically. To make further changes, call (208) 555-0123.</p><p style='color:#666;font-size:12px;'>— Bright Smile Dental via DentAssist AI</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "42d1b1bf-940e-485f-9670-61f8c0ddc2eb",
+      "name": "Email Patient Reschedule",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        480
+      ],
+      "webhookId": "085c5bf2-63ad-4062-851d-fd134f8980e0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qSkcYAbnoyKjKC9i",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r-u-1",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "r-u-2",
+              "name": "action",
+              "value": "update",
+              "type": "string"
+            },
+            {
+              "id": "r-u-3",
+              "name": "appointment_id",
+              "value": "={{ $('Merge Update Result').first().json.appointment_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-u-4",
+              "name": "calendar_event_id",
+              "value": "={{ $('Merge Update Result').first().json.calendar_event_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-u-5",
+              "name": "message_voice",
+              "value": "={{ 'Done! I have rescheduled your ' + $('Merge Update Result').first().json.service_type + ' to ' + DateTime.fromISO($('Merge Update Result').first().json.start_time).toFormat('EEEE MMMM d') + ' at ' + DateTime.fromISO($('Merge Update Result').first().json.start_time).toFormat('h:mm a') + '. A confirmation email has been sent.' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-u-6",
+              "name": "message_chat",
+              "value": "={{ '📅 Appointment rescheduled!\\n\\n**' + $('Merge Update Result').first().json.service_type + '**\\nNew time: ' + DateTime.fromISO($('Merge Update Result').first().json.start_time).toFormat('EEEE, MMMM d') + ' at ' + DateTime.fromISO($('Merge Update Result').first().json.start_time).toFormat('h:mm a') + '\\n\\nConfirmation sent to your email.' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-u-7",
+              "name": "next_action",
+              "value": "null",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8ec9c6ed-e040-4879-9400-34bc8165addf",
+      "name": "Set Update Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1584,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "52afcffc1e6bcb8453be595fe720279ba73f726f9d789b675be5371b8060ab61@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Calendar"
+        },
+        "eventId": "={{ $json.calendar_event_id }}",
+        "options": {}
+      },
+      "id": "db47ebae-1cbb-4250-9693-2740b4b7996b",
+      "name": "Delete GCal Event [Cancel]",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        672
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "NH71Dxgyw4MWykRv",
+          "name": "Google Calendar OAuth2 API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through parent context even after GCal delete\nconst ctx = $('Merge Patient ID').first().json;\nreturn [{ json: ctx }];"
+      },
+      "id": "43ede9e3-4119-41df-9fc6-75d4fd5ec1f1",
+      "name": "Pass Context [Cancel]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE appointments\nSET\n  status = 'cancelled',\n  updated_at = NOW()\nWHERE calendar_event_id = '{{ $json.calendar_event_id }}'\n   OR id = {{ $json.appointment_id || 0 }}\nRETURNING id AS appointment_id, service_type, start_time, patient_id;",
+        "options": {}
+      },
+      "id": "8b55e616-2337-43fd-803c-f3dcfd9c61c3",
+      "name": "Cancel Appointment DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        464,
+        672
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbResult = $input.item.json;\nconst ctx = $('Merge Patient ID').first().json;\nreturn [{ json: { ...ctx, appointment_id: dbResult.appointment_id, service_type: dbResult.service_type || ctx.service_type, start_time: dbResult.start_time || ctx.start_time } }];"
+      },
+      "id": "f962c528-a5cf-4433-a035-1bc3e5cfbec7",
+      "name": "Merge Cancel Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.patient_email }}",
+        "subject": "=❌ Appointment Cancelled - {{ $json.service_type }} at Bright Smile Dental",
+        "message": "=<div style='font-family:Arial,sans-serif;max-width:600px;'><h2 style='color:#dc2626;'>Appointment Cancelled</h2><p>Hi {{ $json.patient_name }},</p><p>Your appointment has been cancelled as requested.</p><table style='border-collapse:collapse;width:100%;margin:20px 0;'><tr style='background:#fef2f2;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Cancelled Service</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.service_type }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Was Scheduled For</td><td style='padding:12px;border:1px solid #ddd;'>{{ DateTime.fromISO($json.start_time).toFormat('EEEE, MMMM d, yyyy') }} at {{ DateTime.fromISO($json.start_time).toFormat('h:mm a') }}</td></tr></table><p>We hope to see you again soon. To book a new appointment, visit our website or call (208) 555-0123.</p><p style='color:#666;font-size:12px;'>— Bright Smile Dental via DentAssist AI</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5bf4822b-db55-4219-ba4a-235a51a74f76",
+      "name": "Email Patient Cancellation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        912,
+        672
+      ],
+      "webhookId": "7a31c589-0187-4fb2-a7b1-e57cef109c7b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qSkcYAbnoyKjKC9i",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "wajidjavedalilanjar@gmail.com",
+        "subject": "=🚨 Cancellation Alert - {{ $json.patient_name }} | {{ $json.service_type }}",
+        "message": "=<div style='font-family:Arial,sans-serif;max-width:600px;'><h2 style='color:#dc2626;'>Appointment Cancellation</h2><p>An appointment has been cancelled. This slot is now open.</p><table style='border-collapse:collapse;width:100%;margin:20px 0;'><tr style='background:#fef2f2;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Patient</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.patient_name }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Phone</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.patient_phone }}</td></tr><tr style='background:#fef2f2;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Cancelled Service</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.service_type }}</td></tr><tr><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Cancelled Slot</td><td style='padding:12px;border:1px solid #ddd;'>{{ DateTime.fromISO($json.start_time).toFormat('EEEE, MMMM d, yyyy') }} at {{ DateTime.fromISO($json.start_time).toFormat('h:mm a') }}</td></tr><tr style='background:#fef2f2;'><td style='padding:12px;border:1px solid #ddd;font-weight:bold;'>Channel</td><td style='padding:12px;border:1px solid #ddd;'>{{ $json.channel }}</td></tr></table><p style='color:#666;font-size:12px;'>— DentAssist AI | Ref: {{ $json.appointment_id }}</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3080f712-da7d-4002-a6c0-852451b0f108",
+      "name": "Email Clinic Cancel Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1136,
+        672
+      ],
+      "webhookId": "78e52887-6c8c-42e1-95f3-78befb9a9e1d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qSkcYAbnoyKjKC9i",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r-can-1",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "r-can-2",
+              "name": "action",
+              "value": "cancel",
+              "type": "string"
+            },
+            {
+              "id": "r-can-3",
+              "name": "appointment_id",
+              "value": "={{ $('Merge Cancel Result').first().json.appointment_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r-can-4",
+              "name": "message_voice",
+              "value": "={{ 'Done. Your ' + $('Merge Cancel Result').first().json.service_type + ' appointment on ' + DateTime.fromISO($('Merge Cancel Result').first().json.start_time).toFormat('MMMM d') + ' has been cancelled. A confirmation email has been sent. We hope to see you again soon.' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-can-5",
+              "name": "message_chat",
+              "value": "={{ '❌ Appointment cancelled.\\n\\n**' + $('Merge Cancel Result').first().json.service_type + '** on ' + DateTime.fromISO($('Merge Cancel Result').first().json.start_time).toFormat('MMMM d') + ' has been removed.\\n\\nA confirmation email has been sent. Need a new appointment? Just ask!' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-can-6",
+              "name": "next_action",
+              "value": "offer_rebook",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "18203212-7f2c-44f1-aa7b-7cace07fa47c",
+      "name": "Set Cancel Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r-err-1",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "r-err-2",
+              "name": "error_code",
+              "value": "SLOT_TAKEN",
+              "type": "string"
+            },
+            {
+              "id": "r-err-3",
+              "name": "message_voice",
+              "value": "={{ 'I'm sorry, that time slot is already taken. Would you like me to find the next available slot?' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-err-4",
+              "name": "message_chat",
+              "value": "={{ '⚠️ That time slot is unavailable. The calendar shows a conflict at ' + $json.conflicting_event + '. Would you like me to find alternative times?' }}",
+              "type": "string"
+            },
+            {
+              "id": "r-err-5",
+              "name": "next_action",
+              "value": "suggest_alternatives",
+              "type": "string"
+            },
+            {
+              "id": "r-err-6",
+              "name": "conflicting_event",
+              "value": "={{ $json.conflicting_event || 'Unknown event' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2023dabb-c4d2-48de-809f-f66ea81ab25f",
+      "name": "Set Slot Taken Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        688,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r-fb-1",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "r-fb-2",
+              "name": "error_code",
+              "value": "UNKNOWN_ACTION",
+              "type": "string"
+            },
+            {
+              "id": "r-fb-3",
+              "name": "message_voice",
+              "value": "I'm sorry, I didn't understand that request. Could you clarify if you'd like to book, reschedule, check, or cancel an appointment?",
+              "type": "string"
+            },
+            {
+              "id": "r-fb-4",
+              "name": "message_chat",
+              "value": "❓ I didn't recognise that action. Please specify: **book**, **read**, **update**, or **cancel**.",
+              "type": "string"
+            },
+            {
+              "id": "r-fb-5",
+              "name": "next_action",
+              "value": "clarify",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "53735c4e-cb45-481c-b0d3-f386406c6a78",
+      "name": "Set Fallback Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16,
+        864
+      ]
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "action": "book",
+          "channel": "chat",
+          "idempotency_key": "10203040506-2026-05-10T10:00:00",
+          "patient_name": "Alex Johnson",
+          "patient_phone": "10203040506",
+          "patient_email": "alex@example.com",
+          "service_type": "Cleaning",
+          "start_time": "2026-05-10T10:00:00",
+          "end_time": "2026-05-10T11:00:00",
+          "timezone": "America/New_York",
+          "calendar_event_id": "",
+          "appointment_id": ""
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Patient Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Upsert": {
+      "main": [
+        [
+          {
+            "node": "Merge Patient ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Patient ID": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Check Availability [Create]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Appointments [Read]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Availability [Update]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete GCal Event [Cancel]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Fallback Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Availability [Create]": {
+      "main": [
+        [
+          {
+            "node": "Process Availability [Create]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Availability [Create]": {
+      "main": [
+        [
+          {
+            "node": "IF Slot Available [Create]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Slot Available [Create]": {
+      "main": [
+        [
+          {
+            "node": "Book GCal Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Slot Taken Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Book GCal Event": {
+      "main": [
+        [
+          {
+            "node": "Merge GCal ID [Create]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge GCal ID [Create]": {
+      "main": [
+        [
+          {
+            "node": "Insert Appointment DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Appointment DB": {
+      "main": [
+        [
+          {
+            "node": "Merge Appointment ID [Create]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Appointment ID [Create]": {
+      "main": [
+        [
+          {
+            "node": "Email Patient Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Patient Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Set Create Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Appointments [Read]": {
+      "main": [
+        [
+          {
+            "node": "Set Read Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Availability [Update]": {
+      "main": [
+        [
+          {
+            "node": "Process Availability [Update]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Availability [Update]": {
+      "main": [
+        [
+          {
+            "node": "IF Slot Available [Update]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Slot Available [Update]": {
+      "main": [
+        [
+          {
+            "node": "Update GCal Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Slot Taken Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update GCal Event": {
+      "main": [
+        [
+          {
+            "node": "Update Appointment DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Appointment DB": {
+      "main": [
+        [
+          {
+            "node": "Merge Update Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Update Result": {
+      "main": [
+        [
+          {
+            "node": "Email Patient Reschedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Patient Reschedule": {
+      "main": [
+        [
+          {
+            "node": "Set Update Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete GCal Event [Cancel]": {
+      "main": [
+        [
+          {
+            "node": "Pass Context [Cancel]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass Context [Cancel]": {
+      "main": [
+        [
+          {
+            "node": "Cancel Appointment DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Appointment DB": {
+      "main": [
+        [
+          {
+            "node": "Merge Cancel Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Cancel Result": {
+      "main": [
+        [
+          {
+            "node": "Email Patient Cancellation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Patient Cancellation": {
+      "main": [
+        [
+          {
+            "node": "Email Clinic Cancel Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Clinic Cancel Alert": {
+      "main": [
+        [
+          {
+            "node": "Set Cancel Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e3068bb0-a297-4587-8d5f-4a821e4b4377",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d5ab5a7eee2505a002a53f5ebdb0b436f860a0329585a8240bd132466b232f8"
+  },
+  "id": "55N5xI0lhYmam8IE",
+  "tags": []
+}

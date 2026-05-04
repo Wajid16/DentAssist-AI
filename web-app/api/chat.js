@@ -63,8 +63,9 @@ module.exports = async function handler(req, res) {
     // N8N's AI Agent node returns the text in the "output" property by default. 
     // However, since the user added a Google Sheets node before the Response node, 
     // it returns the Google Sheets JSON (e.g., {"AI Response": "..."}).
+    // The "Production v2" workflow explicitly formats it as {"reply": "..."}.
     // We check all possible variations to be flexible.
-    const textResponse = data["AI Response"] || data.response || data.output || data.text || data.message || "I apologize, I didn't receive a proper response. Could you try again?";
+    const textResponse = data.reply || data["AI Response"] || data.response || data.output || data.text || data.message || "I apologize, I didn't receive a proper response. Could you try again?";
 
     // 4. Send response back to the widget
     return res.status(200).json({ response: textResponse });

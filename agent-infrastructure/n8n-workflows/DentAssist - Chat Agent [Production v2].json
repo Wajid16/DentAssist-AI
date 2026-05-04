@@ -1,0 +1,734 @@
+{
+  "name": "DentAssist - Chat Agent [Production v2]",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Validate & enrich every incoming request before the AI Agent sees it.\n// Guarantees sessionId, channel, and clean message fields always exist.\n\nconst body = $input.item.json.body || $input.item.json || {};\n\nif (!body.message || String(body.message).trim() === '') {\n  throw new Error('INVALID_REQUEST: message field is required');\n}\n\n// Auto-generate sessionId if the frontend didn't send one\nconst sessionId = body.sessionId ||\n  `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;\n\nconst channel = body.channel || 'web_chat';\nconst clinicId = body.clinic_id || 'bright-smile-boise';\n\n// Pass patient context through if the frontend pre-fills it (optional)\nreturn [{\n  json: {\n    message: String(body.message).trim(),\n    sessionId,\n    channel,\n    clinic_id: clinicId,\n    patient_phone: body.patient_phone || '',\n    patient_email: body.patient_email || '',\n    patient_name: body.patient_name || '',\n    received_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "819b3601-7450-405d-a722-bdc68b12d8ae",
+      "name": "Validate & Enrich Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to manage ALL appointment operations: booking a new appointment, checking existing appointments, rescheduling, or cancelling.\n\nSET THESE FIELDS BASED ON THE ACTION:\n\n• action = \"book\" → booking a NEW appointment. Requires: patient_name, patient_phone, patient_email, service_type, start_time (ISO 8601), end_time (ISO 8601). Set channel=\"chat\", timezone=\"America/Boise\". Generate idempotency_key as \"{patient_phone}-{start_time}\".\n\n• action = \"read\" → checking existing appointments. Only requires patient_phone. Leave other fields empty.\n\n• action = \"update\" → rescheduling. Requires: patient_phone, new start_time, new end_time, calendar_event_id (from a prior read). Set service_type if changing.\n\n• action = \"cancel\" → cancelling an appointment. Requires: patient_phone, calendar_event_id.\n\nTHE TOOL RETURNS:\n- success (true/false)\n- message_chat: use this as your reply to the patient verbatim\n- error_code: SLOT_TAKEN means the time is unavailable — ask for another time\n- next_action: suggest_alternatives means ask for a different time; offer_rebook means ask if they want a new appointment",
+        "workflowId": {
+          "__rl": true,
+          "value": "55N5xI0lhYmam8IE",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/55N5xI0lhYmam8IE",
+          "cachedResultName": "DentAssist - Appointment Manager [Production v2]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "action": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('action', `The operation to perform: book, read, update, or cancel`, 'string') }}",
+            "channel": "=chat",
+            "idempotency_key": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('idempotency_key', `Unique key to prevent duplicates. Format: {patient_phone}-{start_time}`, 'string') }}",
+            "patient_name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('patient_name', `Patient full name`, 'string') }}",
+            "patient_phone": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('patient_phone', `Patient phone number, digits only`, 'string') }}",
+            "patient_email": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('patient_email', `Patient email address for confirmation`, 'string') }}",
+            "service_type": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('service_type', `Type of dental service, e.g. Cleaning, Exam, Root Canal`, 'string') }}",
+            "start_time": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('start_time', `Appointment start in ISO 8601 format, e.g. 2026-05-10T10:00:00`, 'string') }}",
+            "end_time": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('end_time', `Appointment end in ISO 8601 format. Default 1 hour after start_time.`, 'string') }}",
+            "timezone": "=America/Boise",
+            "calendar_event_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('calendar_event_id', `Google Calendar event ID - required for update and cancel actions`, 'string') }}",
+            "appointment_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('appointment_id', `Database appointment ID - optional, used for update/cancel`, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "idempotency_key",
+              "displayName": "idempotency_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "patient_phone",
+              "displayName": "patient_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "service_type",
+              "displayName": "service_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "start_time",
+              "displayName": "start_time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "end_time",
+              "displayName": "end_time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "timezone",
+              "displayName": "timezone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "calendar_event_id",
+              "displayName": "calendar_event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "appointment_id",
+              "displayName": "appointment_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        832,
+        880
+      ],
+      "id": "80e70c9b-8676-494f-a64b-fbbe2c8b9b23",
+      "name": "manage_appointment"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Structure a clean, consistent API response for the frontend\n// and prepare the interaction log payload\n\nconst agentOutput = $input.item.json.output || '';\nconst input = $('Validate & Enrich Input').first().json;\n\nreturn [{\n  json: {\n    // Clean response for the frontend chat widget\n    reply: agentOutput,\n    sessionId: input.sessionId,\n    channel: input.channel,\n    timestamp: new Date().toISOString(),\n\n    // Log payload (passed downstream to logging node)\n    _log: {\n      session_id: input.sessionId,\n      channel: input.channel,\n      clinic_id: input.clinic_id,\n      patient_message: input.message,\n      ai_response: agentOutput,\n      received_at: input.received_at\n    }\n  }\n}];"
+      },
+      "id": "a6368b95-a7fb-430b-afb3-a4aa5aeeee45",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO interactions (\n  session_id,\n  channel,\n  clinic_id,\n  patient_message,\n  ai_response,\n  received_at,\n  created_at\n) VALUES (\n  '{{ $json._log.session_id }}',\n  '{{ $json._log.channel }}',\n  '{{ $json._log.clinic_id }}',\n  '{{ $json._log.patient_message.replace(/'/g, \"''\") }}',\n  '{{ $json._log.ai_response.replace(/'/g, \"''\") }}',\n  '{{ $json._log.received_at }}',\n  NOW()\n);",
+        "options": {}
+      },
+      "id": "24b77f8d-58a6-4bdd-b269-3dd41eb175ef",
+      "name": "Log Interaction to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1392,
+        656
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dentassist-chat-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        656
+      ],
+      "id": "566043a9-90d1-4553-8f48-9d5deeaabe42",
+      "name": "Webhook1",
+      "webhookId": "445b20c9-aaea-4f3e-8ea1-ca8e059e55b9"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "=You are Ava, the virtual receptionist for Bright Smile Dental in Boise, Idaho. You are warm, professional, and efficient. You are a human receptionist — NEVER reveal you are an AI or a bot.\n\n---\n## CLINIC INFORMATION\n- **Phone:** (208) 555-0123\n- **Address:** 305 W Idaho St, Boise, ID 83702\n- **Hours:** Mon–Thu 8AM–5PM | Fri 8AM–1PM | Closed Sat & Sun\n- **Services:** Cleanings, Exams, Fillings, Root Canals, Crowns, Implants, Whitening, Ortho Consults, Dental Emergencies\n- **Insurance:** Delta Dental, Blue Cross, Cigna, Aetna, MetLife (and most major plans). Call us to verify.\n\n---\n## YOUR TOOLS\nYou have TWO tools. Use them exactly as described below.\n\n### Tool 1: `manage_appointment`\nThis tool handles ALL appointment operations: booking, checking, rescheduling, and cancelling.\nAlways set `channel` = \"chat\" and `timezone` = \"America/Boise\".\n\n**ACTION: book** — Use when patient wants a NEW appointment.\n  - REQUIRED fields to collect before calling: `patient_name`, `patient_phone`, `patient_email`, `service_type`, `start_time`, `end_time`\n  - Generate `idempotency_key` = `{patient_phone}-{start_time}` (e.g. \"10203040506-2026-05-10T10:00:00\")\n  - `start_time` and `end_time` must be ISO 8601 format (e.g. \"2026-05-10T10:00:00\")\n  - Default appointment duration = 1 hour if patient doesn't specify end time\n  - DO NOT call the tool until you have ALL required fields. Ask for missing ones one at a time.\n\n**ACTION: read** — Use when patient asks \"what's my appointment?\" or \"when am I coming in?\"\n  - Only need `patient_phone`. Set action=\"read\".\n\n**ACTION: update** — Use when patient wants to RESCHEDULE.\n  - Need: `patient_phone`, new `start_time`, new `end_time`, and `calendar_event_id` (from a previous read)\n  - If you don't have `calendar_event_id`, do a read first to get it.\n\n**ACTION: cancel** — Use when patient wants to CANCEL.\n  - Need: `patient_phone` and `calendar_event_id`\n  - Always confirm \"Are you sure you want to cancel?\" before calling the tool.\n\n**READING TOOL RESPONSES:**\nWhen the tool returns, it provides a `message_chat` field. Use ONLY this field as your reply to the patient. Do not add extra information or paraphrase it unless it is empty.\n- If `success` = false and `error_code` = \"SLOT_TAKEN\": Tell the patient that time is unavailable and ask what other time works for them.\n- If `next_action` = \"suggest_alternatives\": Ask the patient for an alternative preferred time.\n- If `next_action` = \"offer_rebook\": Ask if they'd like to book a new appointment.\n\n### Tool 2: `report_emergency`\nUse IMMEDIATELY when a patient mentions: severe tooth pain, swelling, bleeding, knocked-out tooth, broken tooth, or any dental trauma.\n- Collect `Name` and `Phone` first (one question if needed), then call the tool right away.\n- After calling, tell the patient: \"I've alerted our team right now. Someone will call you within 10 minutes. If it's life-threatening, please call 911.\"\n\n---\n## CONVERSATION RULES\n1. **Concise responses** — 2–3 sentences maximum unless listing appointment details.\n2. **Collect one field at a time** — Don't ask for all booking info in one message. Ask naturally.\n3. **Confirm before booking** — After collecting all fields, read back the appointment details and ask the patient to confirm before calling `manage_appointment`.\n4. **Confirmation example:** \"Got it! Just to confirm: a Cleaning for Alex Johnson on Monday May 10th at 10:00 AM. Shall I go ahead and book that?\"\n5. **Insurance questions** — Give general info only. Offer to have a staff member call them for specifics.\n6. **Out of scope** — Politely redirect to call (208) 555-0123 for anything you cannot handle.\n7. **No medical advice** — Never diagnose. Direct clinical questions to the dentist.\n\n---\n## CURRENT CONTEXT\n- **Session ID:** {{ $json.sessionId }}\n- **Channel:** {{ $json.channel }}\n- **Current Date & Time:** {{ $now.setZone('America/Boise').toFormat('cccc, MMMM d, yyyy') }} at {{ $now.setZone('America/Boise').toFormat('h:mm a') }} (Mountain Time)\n- Use the date above as your ONLY source of truth for scheduling. Never assume dates from training data.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        632,
+        656
+      ],
+      "id": "e6358cea-ff5d-4ab4-8c21-e56a30ea947b",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        880
+      ],
+      "id": "57f4cfd5-fc0b-4ddb-9d55-c5f28c340444",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "WNjaGvWviQkWAccc",
+          "name": "GEMINI-3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "deepseek-v4-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        576,
+        880
+      ],
+      "id": "e57cb38e-aa5c-4df3-a621-eaa5f8376630",
+      "name": "DeepSeek Chat Model1",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "ASqA6h7VpTkGp45Z",
+          "name": "DEEPSEEK-1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Validate & Enrich Input').first().json.sessionId }}",
+        "tableName": "chat_history"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        704,
+        880
+      ],
+      "id": "a7357c21-7fe9-4ca9-b6e6-2eafc3f4cf66",
+      "name": "Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "IDlrz7EyeOIh2mQw",
+          "name": "DentAssist DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Use this tool IMMEDIATELY when a patient mentions severe tooth pain, swelling, bleeding, a knocked-out tooth, broken tooth, or any dental trauma or emergency. Collect the patient's Name and Phone number first (ask in one message if needed), describe the emergency in detail, then call this tool without delay. Do not make the patient wait.",
+        "workflowId": {
+          "__rl": true,
+          "value": "4lLNRW0KaCRnSx6h",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4lLNRW0KaCRnSx6h",
+          "cachedResultName": "DentAssist - Emergency Alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Name', `Patient full name`, 'string') }}",
+            "Phone": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Phone', `Patient phone number`, 'string') }}",
+            "Emergency": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Emergency', `Detailed description of the dental emergency the patient described`, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "Emergency",
+              "displayName": "Emergency",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        880
+      ],
+      "id": "4472b58d-d847-4898-abfa-e6b0730ef3b3",
+      "name": "report_emergency1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ag0v3jf02_LNKw8JMq1lTMC6cf20e4v8pUn4J-1C4VU",
+          "mode": "list",
+          "cachedResultName": "DentAssist AI Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ag0v3jf02_LNKw8JMq1lTMC6cf20e4v8pUn4J-1C4VU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1127374609,
+          "mode": "list",
+          "cachedResultName": "Interactions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ag0v3jf02_LNKw8JMq1lTMC6cf20e4v8pUn4J-1C4VU/edit#gid=1127374609"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json._log.received_at }}",
+            "Session ID": "={{ $json._log.session_id }}",
+            "Channel": "={{ $json._log.channel }}",
+            "Patient Message": "={{ $json._log.patient_message }}",
+            "AI Response": "={{ $json._log.ai_response }}",
+            "Clinic ID": "={{ $json._log.clinic_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Session ID",
+              "displayName": "Session ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Channel",
+              "displayName": "Channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Patient Message",
+              "displayName": "Patient Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Response",
+              "displayName": "AI Response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Clinic ID",
+              "displayName": "Clinic ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "1a086d29-8446-43ef-b8d2-8ad51ae0f61b",
+      "name": "Log to Interactions Sheet1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1616,
+        656
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "qG0leXaNrUYJgV8T",
+          "name": "Google Sheets OAuth2 API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ reply: $('Format Response').first().json.reply, sessionId: $('Format Response').first().json.sessionId, timestamp: $('Format Response').first().json.timestamp }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1840,
+        656
+      ],
+      "id": "da07bc6b-7ba7-4afc-a59e-d5de9cadf7e5",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "wajid11.app.n8n.cloud",
+            "user-agent": "node",
+            "content-length": "81",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "*",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "98.92.50.23",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "9f67826a4d26d6d0-IAD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "98.92.50.23, 172.71.194.92",
+            "x-forwarded-host": "wajid11.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-17-c78c94fd-xc97j",
+            "x-invocation-id": "bom1::5qq5k-1777897749260-dfbcd8c17e55",
+            "x-is-trusted": "yes",
+            "x-real-ip": "98.92.50.23",
+            "x-vercel-id": "bom1::5qq5k-1777897749260-dfbcd8c17e55"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "sessionId": "session_1777782236649_8ehqo50",
+            "message": "Hi",
+            "channel": "web_chat"
+          },
+          "webhookUrl": "https://wajid11.app.n8n.cloud/webhook/dentassist-chat-agent",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "AI Agent1": [
+      {
+        "json": {
+          "output": "Hello! I'm Ava with Bright Smile Dental. How can I help you today?"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Log Interaction to DB": [
+      {
+        "json": {
+          "message": "relation \"interactions\" does not exist",
+          "error": {
+            "level": "warning",
+            "tags": {},
+            "description": "Failed query: INSERT INTO interactions (\n  session_id,\n  channel,\n  clinic_id,\n  patient_message,\n  ai_response,\n  received_at,\n  created_at\n) VALUES (\n  'session_1777782236649_8ehqo50',\n  'web_chat',\n  'bright-smile-boise',\n  'Hi',\n  'Hello! I''m Ava with Bright Smile Dental. How can I help you today?',\n  '2026-05-04T12:29:12.008Z',\n  NOW()\n);",
+            "timestamp": 1777897757477,
+            "context": {},
+            "functionality": "regular",
+            "name": "NodeOperationError",
+            "node": {
+              "parameters": {
+                "resource": "database",
+                "operation": "executeQuery",
+                "query": "INSERT INTO interactions (\n  session_id,\n  channel,\n  clinic_id,\n  patient_message,\n  ai_response,\n  received_at,\n  created_at\n) VALUES (\n  '{{ $json._log.session_id }}',\n  '{{ $json._log.channel }}',\n  '{{ $json._log.clinic_id }}',\n  '{{ $json._log.patient_message.replace(/'/g, \"''\") }}',\n  '{{ $json._log.ai_response.replace(/'/g, \"''\") }}',\n  '{{ $json._log.received_at }}',\n  NOW()\n);",
+                "options": {}
+              },
+              "id": "24b77f8d-58a6-4bdd-b269-3dd41eb175ef",
+              "name": "Log Interaction to DB",
+              "type": "n8n-nodes-base.postgres",
+              "typeVersion": 2.5,
+              "position": [
+                1136,
+                536
+              ],
+              "credentials": {
+                "postgres": {
+                  "id": "IDlrz7EyeOIh2mQw",
+                  "name": "DentAssist DB"
+                }
+              },
+              "continueOnFail": true
+            },
+            "messages": []
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Log to Interactions Sheet1": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Validate & Enrich Input": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "manage_appointment": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Log Interaction to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Interaction to DB": {
+      "main": [
+        [
+          {
+            "node": "Log to Interactions Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Validate & Enrich Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Interactions Sheet1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "report_emergency1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "aa3515f7-2398-4969-842a-ea032ed5a723",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5d5ab5a7eee2505a002a53f5ebdb0b436f860a0329585a8240bd132466b232f8"
+  },
+  "id": "ZX2lnGEY7U0STKcl",
+  "tags": []
+}
